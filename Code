@@ -1,0 +1,78 @@
+import yfinance as yf
+import matplotlib.pyplot as plt
+
+def get_stock_data(ticker, period="6mo"):
+    stock = yf.Ticker(ticker)
+    df = stock.history(period=period)
+    if df.empty:
+        print(f"No data found for {ticker}. Please check the ticker symbol.")
+        return None
+    return df
+
+def calculate_moving_averages(df):
+    df["MA20"] = df["Close"].rolling(window=20).mean()
+    df["MA50"] = df["Close"].rolling(window=50).mean()
+    return df
+
+def detect_anomalies(df):
+    df["Returns"] = df["Close"].pct_change()
+    df["Mean"] = df["Returns"].rolling(window=20).mean()
+    df["Std"] = df["Returns"].rolling(window=20).std()
+    df["Anomaly"] = (df["Returns"] - df["Mean"]).abs() > (2 * df["Std"])
+    return df
+
+def visualise(df, ticker):
+    plt.figure(figsize=(12, 6))
+    plt.plot(df["Close"], label="Price", color="blue")
+    plt.plot(df["MA20"], label="20-day MA", color="orange")
+    plt.plot(df["MA50"], label="50-day MA", color="green")
+
+    # Plot anomalies as red dots
+    anomalies = df[df["Anomaly"] == True]
+    plt.scatter(anomalies.index, anomalies["Close"], 
+                color="red", label="Anomaly", zorder=5)
+
+    plt.title(f"{ticker} Stock Price Analysis")
+    plt.xlabel("Date")
+    plt.ylabel("Price (USD)")
+    plt.legend()
+    plt.tight_layout()
+    plt.show()
+
+def print_anomalies(df):
+    anomalies = df[df["Anomaly"] == True]
+    if anomalies.empty:
+        print("\nNo unusual price movements detected.")
+    else:
+        print(f"\nUnusual price movements detected on {len(anomalies)} day(s):")
+        for date, row in anomalies.iterrows():
+            print(f"  {date.date()} — Close: ${row['Close']:.2f} | Return: {row['Returns']*100:.2f}%")
+
+def main():
+    while True:
+        print("\nStock Anomaly Detection Tool")
+        print("1. Analyse a stock")
+        print("2. Exit")
+        choice = input("Choose (1/2): ")
+
+        if choice == "1":
+            ticker = input("Enter stock ticker (e.g. AAPL, TSLA, GOOGL): ").upper().strip()
+            period = input("Enter time period (1mo, 3mo, 6mo, 1y, 2y): ").strip()
+            
+            print(f"\nFetching data for {ticker}...")
+            df = get_stock_data(ticker, period)
+            
+            if df is not None:
+                df = calculate_moving_averages(df)
+                df = detect_anomalies(df)
+                print_anomalies(df)
+                visualise(df, ticker)
+
+        elif choice == "2":
+            print("Goodbye!")
+            break
+        else:
+            print("Invalid choice, please try again.")
+
+if __name__ == "__main__":
+    main()
